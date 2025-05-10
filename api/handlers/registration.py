@@ -82,7 +82,7 @@ class RegistrationHandler(BaseHandler):
         yield self.db.users.insert_one({
             'email': email_ciphertext,
             'password': password,
-            'displayName': display_name_ciphertext
+            'displayName': display_name_ciphertext,
             'disability': disability  
         })
         
