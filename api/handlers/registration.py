@@ -22,6 +22,11 @@ class RegistrationHandler(BaseHandler):
                 display_name = email
             if not isinstance(display_name, str):
                 raise Exception()
+            disability = body.get('disability')  # added disability requirement
+            if disability is not None and not isinstance(disability, str):
+                raise Exception()
+                
+                
         except Exception as e:
             self.send_error(400, message='You must provide an email address, password and display name!')
             return
