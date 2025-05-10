@@ -55,10 +55,12 @@ class RegistrationHandler(BaseHandler):
             'email': email,
             'password': password,
             'displayName': display_name
+            'disability': disability  
         })
 
         self.set_status(200)
         self.response['email'] = email
         self.response['displayName'] = display_name
+        self.response['disability'] = disability
 
         self.write_json()
