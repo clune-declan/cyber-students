@@ -7,7 +7,7 @@ from api.handlers.registration import RegistrationHandler
 
 from .base import BaseTest
 
-import urllib.parse
+
 
 class RegistrationHandlerTest(BaseTest):
 
@@ -23,7 +23,8 @@ class RegistrationHandlerTest(BaseTest):
         body = {
           'email': email,
           'password': 'testPassword',
-          'displayName': display_name
+          'displayName': display_name,
+          'disability': 'visual'
         }
 
         response = self.fetch('/registration', method='POST', body=dumps(body))

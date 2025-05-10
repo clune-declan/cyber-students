@@ -23,6 +23,7 @@ class LoginHandlerTest(BaseTest):
             'email': self.email,
             'password': self.password,
             'displayName': 'testDisplayName'
+            'disability': 'none'
         })
 
     def setUp(self):
