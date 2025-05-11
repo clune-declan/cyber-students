@@ -22,7 +22,7 @@ class LoginHandlerTest(BaseTest):
         yield self.get_app().db.users.insert_one({
             'email': self.email,
             'password': self.password,
-            'displayName': 'testDisplayName'
+            'displayName': 'testDisplayName',
             'disability': 'none'
         })
 

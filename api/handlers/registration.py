@@ -11,7 +11,7 @@ from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 
-from conf import APP_PEPPER, AES_KEY
+from api.conf import APP_PEPPER, AES_KEY
 
 
 def hash_password(password: str, salt: bytes) -> bytes:

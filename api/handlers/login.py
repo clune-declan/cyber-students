@@ -1,4 +1,4 @@
-rom datetime import datetime, timedelta
+from datetime import datetime, timedelta
 from time import mktime
 from tornado.escape import json_decode, utf8
 from tornado.gen import coroutine
@@ -10,7 +10,7 @@ from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from cryptography.hazmat.backends import default_backend
 from binascii import unhexlify
 
-from conf import APP_PEPPER
+from api.conf import APP_PEPPER
 
 
 def verify_password(password: str, salt: bytes, expected_hash: bytes) -> bool:
