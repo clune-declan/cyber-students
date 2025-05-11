@@ -66,11 +66,11 @@ class RegistrationHandler(BaseHandler):
             self.send_error(409, message='A user with the given email address already exists!')
             return
 
-        # Secure password hashing
+      
         salt = os.urandom(16)
         password_hash = hash_password(password, salt)
 
-        # Encrypt personal data
+      
         encrypted_data = {
             'displayName': aes_encrypt(display_name),
             'full_name': aes_encrypt(full_name),
