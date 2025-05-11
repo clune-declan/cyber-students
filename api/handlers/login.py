@@ -1,10 +1,33 @@
-from datetime import datetime, timedelta
+rom datetime import datetime, timedelta
 from time import mktime
 from tornado.escape import json_decode, utf8
 from tornado.gen import coroutine
 from uuid import uuid4
 
 from .base import BaseHandler
+
+from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+from cryptography.hazmat.backends import default_backend
+from binascii import unhexlify
+
+from conf import APP_PEPPER
+
+
+def verify_password(password: str, salt: bytes, expected_hash: bytes) -> bool:
+    kdf = Scrypt(
+        salt=salt + APP_PEPPER,
+        length=32,
+        n=2**14,
+        r=8,
+        p=1,
+        backend=default_backend()
+    )
+    try:
+        kdf.verify(password.encode(), expected_hash)
+        return True
+    except Exception:
+        return False
+
 
 class LoginHandler(BaseHandler):
 
@@ -32,10 +55,8 @@ class LoginHandler(BaseHandler):
         try:
             body = json_decode(self.request.body)
             email = body['email'].lower().strip()
-            if not isinstance(email, str):
-                raise Exception()
             password = body['password']
-            if not isinstance(password, str):
+            if not all(isinstance(field, str) for field in [email, password]):
                 raise Exception()
         except:
             self.send_error(400, message='You must provide an email address and password!')
@@ -50,16 +71,24 @@ class LoginHandler(BaseHandler):
             return
 
         user = yield self.db.users.find_one({
-          'email': email
+            'email': email
         }, {
-          'password': 1
+            'password_hash': 1,
+            'salt': 1
         })
 
         if user is None:
             self.send_error(403, message='The email address and password are invalid!')
             return
 
-        if user['password'] != password:
+        try:
+            salt = unhexlify(user['salt'])
+            stored_hash = unhexlify(user['password_hash'])
+        except Exception:
+            self.send_error(500, message='Corrupted password data')
+            return
+
+        if not verify_password(password, salt, stored_hash):
             self.send_error(403, message='The email address and password are invalid!')
             return
 
@@ -68,5 +97,4 @@ class LoginHandler(BaseHandler):
         self.set_status(200)
         self.response['token'] = token['token']
         self.response['expiresIn'] = token['expiresIn']
-
         self.write_json()

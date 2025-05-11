@@ -11,12 +11,14 @@ class LogoutHandler(AuthHandler):
         yield self.db.users.update_one({
             'email': self.current_user['email'],
         }, {
-            '$set': {
-                'token': None
+            '$unset': {
+                'token': "",
+                'expiresIn': ""
             }
         })
 
         self.current_user = None
 
         self.set_status(200)
+        self.response['message'] = 'Logout successful'
         self.write_json()

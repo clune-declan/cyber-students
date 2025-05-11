@@ -5,19 +5,38 @@ from tornado.gen import coroutine
 
 from .base import BaseHandler
 
+import os
+import json
+from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 
-key = "thebestsecretkey"
-key_bytes = bytes(key, "utf-8")
-print("Key: " + key)
+from conf import APP_PEPPER, AES_KEY
 
-aes_cipher = Cipher(algorithms.AES(key_bytes),
-                    modes.ECB(),
-                    backend=default_backend())
 
-aes_encryptor = aes_cipher.encryptor()
-aes_decryptor = aes_cipher.decryptor()
+def hash_password(password: str, salt: bytes) -> bytes:
+    kdf = Scrypt(
+        salt=salt + APP_PEPPER,
+        length=32,
+        n=2**14,
+        r=8,
+        p=1,
+        backend=default_backend()
+    )
+    return kdf.derive(password.encode())
+
+
+def aes_encrypt(plaintext: str) -> str:
+    cipher = Cipher(
+        algorithms.AES(AES_KEY),
+        modes.ECB(),
+        backend=default_backend()
+    )
+    encryptor = cipher.encryptor()
+    padded = plaintext.encode('utf-8').ljust(32, b'\0')
+    ciphertext = encryptor.update(padded) + encryptor.finalize()
+    return ciphertext.hex()
+
 
 class RegistrationHandler(BaseHandler):
 
@@ -26,79 +45,49 @@ class RegistrationHandler(BaseHandler):
         try:
             body = json_decode(self.request.body)
             email = body['email'].lower().strip()
-            if not isinstance(email, str):
-                raise Exception()
             password = body['password']
-            if not isinstance(password, str):
+            display_name = body.get('displayName') or email
+            full_name = body['full_name']
+            address = body['address']
+            dob = body['dob']
+            phone_number = body['phone_number']
+            disabilities = body['disabilities']
+
+            if not all(isinstance(field, str) for field in [email, password, display_name, full_name, address, dob, phone_number]):
                 raise Exception()
-            display_name = body.get('displayName')
-            if display_name is None:
-                display_name = email
-            if not isinstance(display_name, str):
+            if not isinstance(disabilities, list):
                 raise Exception()
-            disability = body.get('disability')  # added disability requirement
-            if disability is not None and not isinstance(disability, str):
-                raise Exception()
-                
-                
-        except Exception as e:
-            self.send_error(400, message='You must provide an email address, password and display name!')
+        except Exception:
+            self.send_error(400, message='Missing or invalid required fields.')
             return
 
-        if not email:
-            self.send_error(400, message='The email address is invalid!')
-            return
-
-        if not password:
-            self.send_error(400, message='The password is invalid!')
-            return
-
-        if not display_name:
-            self.send_error(400, message='The display name is invalid!')
-            return
-
-        user = yield self.db.users.find_one({
-          'email': email
-        }, {})
-
+        user = yield self.db.users.find_one({'email': email}, {})
         if user is not None:
             self.send_error(409, message='A user with the given email address already exists!')
             return
-            
-        # encrypt email
-        print("Plaintext: " + email)
-        email_bytes = bytes(email, "utf-8")
-        email_ciphertext_bytes = aes_encryptor.update(email_bytes) + aes_encryptor.finalize()
-        email_ciphertext = email_ciphertext_bytes.hex()
-        print("Ciphertext: " + email_ciphertext)
-         
-        # encrypt dispalay name
-        print("Plaintext: " + display_name)
-        display_name_bytes = bytes(display_name, "utf-8")
-        display_name_ciphertext_bytes = aes_encryptor.update(display_name_bytes) + aes_encryptor.finalize()
-        display_name_ciphertext = display_name_ciphertext_bytes.hex()
-        print("Ciphertext: " + display_name_ciphertext)
+
+        # Secure password hashing
+        salt = os.urandom(16)
+        password_hash = hash_password(password, salt)
+
+        # Encrypt personal data
+        encrypted_data = {
+            'displayName': aes_encrypt(display_name),
+            'full_name': aes_encrypt(full_name),
+            'address': aes_encrypt(address),
+            'dob': aes_encrypt(dob),
+            'phone_number': aes_encrypt(phone_number),
+            'disabilities': aes_encrypt(json.dumps(disabilities))
+        }
 
         yield self.db.users.insert_one({
-            'email': email_ciphertext,
-            'password': password,
-            'displayName': display_name_ciphertext,
-            'disability': disability  
+            'email': email,
+            'password_hash': password_hash.hex(),
+            'salt': salt.hex(),
+            'personal_data': encrypted_data
         })
-        
-        # decrypt email
-        email_plaintext_bytes = aes_decryptor.update(email_ciphertext_bytes) + aes_decryptor.finalize()
-        email_plaintext = str(email_plaintext_bytes, "utf-8")
-        print("Original Plaintext: " + email_plaintext)
-        
-        # decrypt display name
-        display_name_plaintext_bytes = aes_decryptor.update(display_name_ciphertext_bytes) + aes_decryptor.finalize()
-        display_name_plaintext = str(display_name_plaintext_bytes, "utf-8")
-        print("Original Plaintext: " + display_name_plaintext)
 
         self.set_status(200)
-        self.response['email'] = email_plaintext
-        self.response['displayName'] = display_name_plaintext
-        self.response['disability'] = disability
-
+        self.response['email'] = email
+        self.response['message'] = 'Registration successful'
         self.write_json()

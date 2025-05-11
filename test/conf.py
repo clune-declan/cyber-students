@@ -8,3 +8,4 @@ MONGODB_HOST = {
 MONGODB_DBNAME = 'cyberStudentsTest'
 
 WORKERS = 1
+
