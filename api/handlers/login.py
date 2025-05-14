@@ -2,99 +2,89 @@ from datetime import datetime, timedelta
 from time import mktime
 from tornado.escape import json_decode, utf8
 from tornado.gen import coroutine
-from uuid import uuid4
-
+import secrets
 from .base import BaseHandler
-
-from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
-from cryptography.hazmat.backends import default_backend
-from binascii import unhexlify
-
-from api.conf import APP_PEPPER
-
-
-def verify_password(password: str, salt: bytes, expected_hash: bytes) -> bool:
-    kdf = Scrypt(
-        salt=salt + APP_PEPPER,
-        length=32,
-        n=2**14,
-        r=8,
-        p=1,
-        backend=default_backend()
-    )
-    try:
-        kdf.verify(password.encode(), expected_hash)
-        return True
-    except Exception:
-        return False
-
+from .hash_passphrases import PasswordHasher
+from .aes_encrypt_decrypt import AESCipher
 
 class LoginHandler(BaseHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.password_hasher = PasswordHasher()
+        self.cipher = AESCipher()
 
     @coroutine
-    def generate_token(self, email):
-        token_uuid = uuid4().hex
+    def generate_token(self, email_hash):
+        token = secrets.token_hex(32)
         expires_in = datetime.now() + timedelta(hours=2)
         expires_in = mktime(expires_in.utctimetuple())
 
-        token = {
-            'token': token_uuid,
+        token_data = {
+            'token': token,
             'expiresIn': expires_in,
         }
 
         yield self.db.users.update_one({
-            'email': email
+            'email_hash': email_hash
         }, {
-            '$set': token
+            '$set': token_data
         })
 
-        return token
+        return token_data
 
     @coroutine
     def post(self):
         try:
             body = json_decode(self.request.body)
             email = body['email'].lower().strip()
+            if not isinstance(email, str):
+                raise Exception()
             password = body['password']
-            if not all(isinstance(field, str) for field in [email, password]):
+            if not isinstance(password, str):
                 raise Exception()
         except:
             self.send_error(400, message='You must provide an email address and password!')
             return
 
-        if not email:
-            self.send_error(400, message='The email address is invalid!')
+        if not email or not password:
+            self.send_error(400, message='Invalid credentials!')
             return
 
-        if not password:
-            self.send_error(400, message='The password is invalid!')
-            return
-
+        # Hash email for lookup
+        email_hash_data = self.password_hasher.hash_passphrase(email)
+        
         user = yield self.db.users.find_one({
-            'email': email
-        }, {
-            'password_hash': 1,
-            'salt': 1
+            'email_hash': email_hash_data['hash']
         })
 
         if user is None:
-            self.send_error(403, message='The email address and password are invalid!')
+            self.send_error(403, message='Invalid credentials!')
             return
 
-        try:
-            salt = unhexlify(user['salt'])
-            stored_hash = unhexlify(user['password_hash'])
-        except Exception:
-            self.send_error(500, message='Corrupted password data')
+        # Verify password
+        stored_password_data = {
+            'hash': user['password_hash'],
+            'salt': user['password_salt'],
+            'params': user['password_params']
+        }
+        
+        if not self.password_hasher.verify_passphrase(password, stored_password_data):
+            self.send_error(403, message='Invalid credentials!')
             return
 
-        if not verify_password(password, salt, stored_hash):
-            self.send_error(403, message='The email address and password are invalid!')
-            return
+        # Decrypt user data
+        decrypted_email = self.cipher.decrypt(user['email'])
+        decrypted_display_name = self.cipher.decrypt(user['displayName'])
+        decrypted_disability = self.cipher.decrypt(user['disability']) if user.get('disability') else None
 
-        token = yield self.generate_token(email)
+        token = yield self.generate_token(user['email_hash'])
 
         self.set_status(200)
         self.response['token'] = token['token']
         self.response['expiresIn'] = token['expiresIn']
+        self.response['email'] = decrypted_email
+        self.response['displayName'] = decrypted_display_name
+        if decrypted_disability:
+            self.response['disability'] = decrypted_disability
+
         self.write_json()
