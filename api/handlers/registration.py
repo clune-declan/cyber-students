@@ -2,92 +2,77 @@ from json import dumps
 from logging import info
 from tornado.escape import json_decode, utf8
 from tornado.gen import coroutine
-
 from .base import BaseHandler
-
+from .hash_passphrases import PasswordHasher
+from .aes_encrypt_decrypt import AESCipher
 import os
-import json
-from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
-
-from api.conf import APP_PEPPER, AES_KEY
-
-
-def hash_password(password: str, salt: bytes) -> bytes:
-    kdf = Scrypt(
-        salt=salt + APP_PEPPER,
-        length=32,
-        n=2**14,
-        r=8,
-        p=1,
-        backend=default_backend()
-    )
-    return kdf.derive(password.encode())
-
-
-def aes_encrypt(plaintext: str) -> str:
-    cipher = Cipher(
-        algorithms.AES(AES_KEY),
-        modes.ECB(),
-        backend=default_backend()
-    )
-    encryptor = cipher.encryptor()
-    padded = plaintext.encode('utf-8').ljust(32, b'\0')
-    ciphertext = encryptor.update(padded) + encryptor.finalize()
-    return ciphertext.hex()
-
 
 class RegistrationHandler(BaseHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.password_hasher = PasswordHasher()
+        self.cipher = AESCipher()
 
     @coroutine
     def post(self):
         try:
             body = json_decode(self.request.body)
             email = body['email'].lower().strip()
+            if not isinstance(email, str):
+                raise Exception()
             password = body['password']
-            display_name = body.get('displayName') or email
-            full_name = body['full_name']
-            address = body['address']
-            dob = body['dob']
-            phone_number = body['phone_number']
-            disabilities = body['disabilities']
-
-            if not all(isinstance(field, str) for field in [email, password, display_name, full_name, address, dob, phone_number]):
+            if not isinstance(password, str):
                 raise Exception()
-            if not isinstance(disabilities, list):
+            display_name = body.get('displayName')
+            if display_name is None:
+                display_name = email
+            if not isinstance(display_name, str):
                 raise Exception()
-        except Exception:
-            self.send_error(400, message='Missing or invalid required fields.')
+            disability = body.get('disability', '')
+            if disability and not isinstance(disability, str):
+                raise Exception()
+        except Exception as e:
+            self.send_error(400, message='Invalid input data format!')
             return
 
-        user = yield self.db.users.find_one({'email': email}, {})
+        if not email or not password or not display_name:
+            self.send_error(400, message='Required fields must be valid!')
+            return
+
+        # Hash email for lookup
+        email_hash_data = self.password_hasher.hash_passphrase(email)
+
+        user = yield self.db.users.find_one({
+            'email_hash': email_hash_data['hash']
+        })
+
         if user is not None:
             self.send_error(409, message='A user with the given email address already exists!')
             return
 
-      
-        salt = os.urandom(16)
-        password_hash = hash_password(password, salt)
+        # Hash password
+        password_hash_data = self.password_hasher.hash_passphrase(password)
 
-      
-        encrypted_data = {
-            'displayName': aes_encrypt(display_name),
-            'full_name': aes_encrypt(full_name),
-            'address': aes_encrypt(address),
-            'dob': aes_encrypt(dob),
-            'phone_number': aes_encrypt(phone_number),
-            'disabilities': aes_encrypt(json.dumps(disabilities))
-        }
+        # Encrypt personal data
+        encrypted_email = self.cipher.encrypt(email)
+        encrypted_display_name = self.cipher.encrypt(display_name)
+        encrypted_disability = self.cipher.encrypt(disability) if disability else None
 
         yield self.db.users.insert_one({
-            'email': email,
-            'password_hash': password_hash.hex(),
-            'salt': salt.hex(),
-            'personal_data': encrypted_data
+            'email': encrypted_email,
+            'email_hash': email_hash_data['hash'],
+            'email_salt': email_hash_data['salt'],
+            'password_hash': password_hash_data['hash'],
+            'password_salt': password_hash_data['salt'],
+            'password_params': password_hash_data['params'],
+            'displayName': encrypted_display_name,
+            'disability': encrypted_disability
         })
 
         self.set_status(200)
         self.response['email'] = email
-        self.response['message'] = 'Registration successful'
+        self.response['displayName'] = display_name
+        if disability:
+            self.response['disability'] = disability
+
         self.write_json()
