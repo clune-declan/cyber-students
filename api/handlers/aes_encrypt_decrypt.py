@@ -66,7 +66,9 @@ def decrypt_from_hex(hex_data):
     encrypted = bytes.fromhex(hex_data)
     return aes.decrypt(encrypted)
 
-# For backwards compatibility
+# For backwards compatibility with existing code
+aes_encrypt = encrypt_to_hex
+aes_decrypt = decrypt_from_hex
 aes_encryptor = aes.encrypt
 aes_decryptor = aes.decrypt
 
