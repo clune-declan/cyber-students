@@ -40,7 +40,7 @@ def check_password(password, stored_data):
 
 if __name__ == "__main__":
     
-    passphrase = input("Please enter your passphrase: ")
+    passphrase = input("Please enter your password: ")
     
    
     result = hash_my_password(passphrase)

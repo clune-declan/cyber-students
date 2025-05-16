@@ -52,17 +52,17 @@ class RegistrationHandlerTest(BaseTest):
         self.assertEqual(email, body_2['email'])
         self.assertEqual(display_name, body_2['displayName'])
 
-        # Verify data is encrypted in database
+        
         user = IOLoop.current().run_sync(lambda: self.db.users.find_one({'email': {'$exists': True}}))
         self.assertIsNotNone(user)
         
-        # Verify encrypted data
+        
         decrypted_email = aes_decrypt(user['email'])
         decrypted_display_name = aes_decrypt(user['displayName'])
         self.assertEqual(email, decrypted_email)
         self.assertEqual(display_name, decrypted_display_name)
         
-        # Verify password is hashed
+        
         self.assertNotEqual(password, user['password_hash'])
         self.assertTrue('password_salt' in user)
 
@@ -82,7 +82,7 @@ class RegistrationHandlerTest(BaseTest):
         self.assertEqual(email, body_2['email'])
         self.assertEqual(email, body_2['displayName'])
 
-        # Verify encryption in database
+        
         user = IOLoop.current().run_sync(lambda: self.db.users.find_one({'email': {'$exists': True}}))
         decrypted_email = aes_decrypt(user['email'])
         self.assertEqual(email, decrypted_email)
@@ -98,8 +98,8 @@ class RegistrationHandlerTest(BaseTest):
         self.assertEqual(200, response.code)
 
         response_2 = self.fetch('/registration', method='POST', body=dumps(body))
-        self.assertEqual(400, response_2.code)  # Changed to match our error code
-
+        self.assertEqual(400, response_2.code) 
+        
     def test_registration_with_disability(self):
         email = 'test4@test.com'
         display_name = 'testDisplayName'
@@ -120,7 +120,7 @@ class RegistrationHandlerTest(BaseTest):
         self.assertEqual(email, body_2['email'])
         self.assertEqual(display_name, body_2['displayName'])
 
-        # Verify disability is encrypted
+      
         user = IOLoop.current().run_sync(lambda: self.db.users.find_one({'email': {'$exists': True}}))
         decrypted_disability = aes_decrypt(user['disability'])
         self.assertEqual(disability, decrypted_disability)

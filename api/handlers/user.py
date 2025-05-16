@@ -19,14 +19,14 @@ class UserHandler(AuthHandler):
         try:
             self.set_status(200)
             
-            # Get encrypted user data
+         
             user = self.current_user
             
-            # Return decrypted basic info
+          
             self.response['email'] = user['email']
             self.response['displayName'] = aes_decrypt(user['displayName'])
             
-            # Add disability info if present
+            
             if user.get('disability'):
                 self.response['disability'] = aes_decrypt(user['disability'])
             

@@ -45,7 +45,7 @@ class LoginHandler(BaseHandler):
                 self.send_error(400, message='The password is invalid!')
                 return
 
-            # Find user by encrypted email
+        
             user = yield self.db.users.find_one({
                 'email': aes_encrypt(email)
             }, {
@@ -57,7 +57,7 @@ class LoginHandler(BaseHandler):
                 self.send_error(403, message='The email address and password are invalid!')
                 return
 
-            # Check password using hash verification
+       
             if not check_password(password, {
                 'hash': user['password_hash'],
                 'salt': user['password_salt']

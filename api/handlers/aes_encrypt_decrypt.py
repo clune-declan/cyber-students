@@ -6,12 +6,12 @@ import os
 from ..conf import AES_KEY
 
 def get_encryption_key():
-    # Derive a 256-bit key from the configuration key
+   
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
-        length=32,  # 32 bytes = 256 bits
-        salt=b'static_salt_123',  # Using a static salt since we want the same key each time
-        iterations=1,  # Single iteration since we just need key stretching
+        length=32,  
+        salt=b'static_salt_123', key each time
+        iterations=1,  
         backend=default_backend()
     )
     return kdf.derive(AES_KEY)
@@ -33,14 +33,14 @@ def aes_encrypt(plaintext):
     if not plaintext:
         return ''
 
-    # Convert to bytes if string
+    
     if isinstance(plaintext, str):
         plaintext = plaintext.encode('utf-8')
 
-    # Generate IV
+  
     iv = os.urandom(16)
 
-    # Create cipher
+    
     cipher = Cipher(
         algorithms.AES(get_encryption_key()),
         modes.CBC(iv),
@@ -48,11 +48,11 @@ def aes_encrypt(plaintext):
     )
     encryptor = cipher.encryptor()
 
-    # Pad and encrypt
+    
     padded_data = pad(plaintext)
     ciphertext = encryptor.update(padded_data) + encryptor.finalize()
 
-    # Combine IV and ciphertext and convert to hex
+  
     return (iv + ciphertext).hex()
 
 def aes_decrypt(hex_data):
@@ -60,14 +60,14 @@ def aes_decrypt(hex_data):
     if not hex_data:
         return ''
 
-    # Convert from hex to bytes
+   
     data = bytes.fromhex(hex_data)
 
-    # Extract IV (first 16 bytes)
+    
     iv = data[:16]
     ciphertext = data[16:]
 
-    # Create cipher
+   
     cipher = Cipher(
         algorithms.AES(get_encryption_key()),
         modes.CBC(iv),
@@ -75,37 +75,28 @@ def aes_decrypt(hex_data):
     )
     decryptor = cipher.decryptor()
 
-    # Decrypt and unpad
+   
     decrypted_padded = decryptor.update(ciphertext) + decryptor.finalize()
     decrypted = unpad(decrypted_padded)
 
-    # Convert back to string
+    
     return decrypted.decode('utf-8')
 
-# Test the encryption
+
 if __name__ == "__main__":
-    test_data = "Hello, World!"
+    test_data = "Test, Test, "
     print(f"Original: {test_data}")
     
-    # Test encryption
+    
     encrypted = aes_encrypt(test_data)
     print(f"Encrypted (hex): {encrypted}")
     
-    # Test decryption
+    
     decrypted = aes_decrypt(encrypted)
     print(f"Decrypted: {decrypted}")
     
-    # Test empty string
+  
     print(f"Empty string test - Encrypted: {aes_encrypt('')}")
     print(f"Empty string test - Decrypted: {aes_decrypt('')}")
     
-    # Test multiple encryptions
-    print("\nTesting multiple encryptions:")
-    for i in range(3):
-        text = f"Test {i}"
-        enc = aes_encrypt(text)
-        dec = aes_decrypt(enc)
-        print(f"Original: {text}")
-        print(f"Encrypted: {enc}")
-        print(f"Decrypted: {dec}")
-        print()
+    
