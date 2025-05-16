@@ -1,25 +1,21 @@
 import os
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+from ..conf import APP_PEPPER, SALT, PBKDF2_ITERATIONS
 
-# make a new pepper when app starts
-pepper = os.urandom(16)
+# Use configuration values instead of generating new ones
+pepper = APP_PEPPER
+salt = SALT
+
+# Create the KDF instance that will be exported
+kdf = Scrypt(
+    salt=salt + pepper,
+    length=32,
+    n=2**14,
+    r=8,
+    p=1
+)
 
 def hash_my_password(passphrase):
-    # make a new salt for each user
-    salt = os.urandom(16)
-    
-    # combine salt and pepper
-    combined = salt + pepper
-    
-    # setup the hasher
-    kdf = Scrypt(
-        salt=combined,
-        length=32,
-        n=2**14,
-        r=8,
-        p=1
-    )
-    
     # convert password to bytes and hash it
     passphrase_bytes = bytes(passphrase, "utf-8")
     hashed = kdf.derive(passphrase_bytes)
@@ -32,13 +28,13 @@ def hash_my_password(passphrase):
 
 def check_password(password, stored_stuff):
     # get the salt from hex
-    salt = bytes.fromhex(stored_stuff["salt"])
+    stored_salt = bytes.fromhex(stored_stuff["salt"])
     
     # combine with our pepper
-    combined = salt + pepper
+    combined = stored_salt + pepper
     
     # setup the hasher same as before
-    kdf = Scrypt(
+    password_kdf = Scrypt(
         salt=combined,
         length=32,
         n=2**14,
@@ -49,7 +45,7 @@ def check_password(password, stored_stuff):
     # check if password matches
     try:
         password_bytes = bytes(password, "utf-8")
-        kdf.verify(password_bytes, bytes.fromhex(stored_stuff["hash"]))
+        password_kdf.verify(password_bytes, bytes.fromhex(stored_stuff["hash"]))
         return True
     except:
         return False
