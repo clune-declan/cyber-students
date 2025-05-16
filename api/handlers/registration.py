@@ -1,3 +1,4 @@
+"""Handler for user registration endpoint."""
 from json import dumps
 from logging import info
 from tornado.escape import json_decode, utf8
@@ -8,9 +9,18 @@ from .aes_encrypt_decrypt import aes_encrypt
 from .hash_passphrases import hash_my_password
 
 class RegistrationHandler(BaseHandler):
+    """Handler for registering new users with encrypted data storage."""
 
     @coroutine
     def post(self):
+        """Handle POST request for user registration.
+        
+        Expects JSON body with:
+        - email: string
+        - password: string
+        - displayName: string (optional)
+        - disability: string (optional)
+        """
         try:
             body = json_decode(self.request.body)
             email = body['email'].lower().strip()
@@ -63,5 +73,5 @@ class RegistrationHandler(BaseHandler):
             self.response['displayName'] = display_name
             self.write_json()
 
-        except Exception as e:
+        except Exception:
             self.send_error(500, message='Internal server error')

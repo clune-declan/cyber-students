@@ -1,3 +1,4 @@
+"""Handler for user profile endpoint."""
 from tornado.web import authenticated
 from tornado.gen import coroutine
 
@@ -5,10 +6,16 @@ from .auth import AuthHandler
 from .aes_encrypt_decrypt import aes_decrypt
 
 class UserHandler(AuthHandler):
+    """Handler for retrieving user profile information."""
 
     @authenticated
     @coroutine
     def get(self):
+        """Handle GET request for user profile.
+        
+        Requires valid authentication token.
+        Returns decrypted user information.
+        """
         try:
             self.set_status(200)
             
