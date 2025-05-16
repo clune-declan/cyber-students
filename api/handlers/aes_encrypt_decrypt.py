@@ -35,10 +35,16 @@ class AESCipher:
         # Encrypt the data
         ciphertext = encryptor.update(padded_data) + encryptor.finalize()
         
-        # Return IV + ciphertext
-        return iv + ciphertext
+        # Return IV + ciphertext as hex
+        return (iv + ciphertext).hex()
 
-    def decrypt(self, data):
+    def decrypt(self, hex_data):
+        if not hex_data:
+            return ''
+            
+        # Convert from hex to bytes
+        data = bytes.fromhex(hex_data)
+        
         # Extract IV from the first 16 bytes
         iv = data[:16]
         ciphertext = data[16:]
@@ -53,38 +59,35 @@ class AESCipher:
         
         return decrypted.decode('utf-8')
 
-# Create singleton instances for the handlers to use
+# Create singleton instance
 aes = AESCipher()
 
-def encrypt_to_hex(plaintext):
+# Main interface functions that return hex strings
+def aes_encrypt(plaintext):
     """Encrypt data and return as hex string"""
-    encrypted = aes.encrypt(plaintext)
-    return encrypted.hex()
+    if not plaintext:
+        return ''
+    return aes.encrypt(plaintext)
 
-def decrypt_from_hex(hex_data):
+def aes_decrypt(hex_data):
     """Decrypt data from hex string"""
-    encrypted = bytes.fromhex(hex_data)
-    return aes.decrypt(encrypted)
-
-# For backwards compatibility with existing code
-aes_encrypt = encrypt_to_hex
-aes_decrypt = decrypt_from_hex
-aes_encryptor = aes.encrypt
-aes_decryptor = aes.decrypt
+    if not hex_data:
+        return ''
+    return aes.decrypt(hex_data)
 
 # Test the encryption
 if __name__ == "__main__":
     test_data = "Hello, World!"
     print(f"Original: {test_data}")
     
-    # Test using hex functions
-    encrypted_hex = encrypt_to_hex(test_data)
-    print(f"Encrypted (hex): {encrypted_hex}")
-    decrypted = decrypt_from_hex(encrypted_hex)
+    # Test encryption
+    encrypted = aes_encrypt(test_data)
+    print(f"Encrypted (hex): {encrypted}")
+    
+    # Test decryption
+    decrypted = aes_decrypt(encrypted)
     print(f"Decrypted: {decrypted}")
     
-    # Test using direct functions
-    encrypted = aes_encryptor(test_data)
-    print(f"Encrypted (bytes): {encrypted.hex()}")
-    decrypted = aes_decryptor(encrypted)
-    print(f"Decrypted: {decrypted}")
+    # Test empty string
+    print(f"Empty string test - Encrypted: {aes_encrypt('')}")
+    print(f"Empty string test - Decrypted: {aes_decrypt('')}")

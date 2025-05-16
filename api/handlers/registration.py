@@ -4,9 +4,7 @@ from tornado.escape import json_decode, utf8
 from tornado.gen import coroutine
 
 from .base import BaseHandler
-
-from .aes_encrypt_decrypt import aes_encryptor, aes_decryptor
-
+from .aes_encrypt_decrypt import aes_encrypt
 from .hash_passphrases import kdf, salt, pepper
 
 class RegistrationHandler(BaseHandler):
@@ -54,21 +52,19 @@ class RegistrationHandler(BaseHandler):
             return
 
         # Encrypt personal information
-        encrypted_email = aes_encryptor.update(bytes(email, 'utf-8')) + aes_encryptor.finalize()
-        encrypted_display = aes_encryptor.update(bytes(display_name, 'utf-8')) + aes_encryptor.finalize()
-        encrypted_disability = ''
-        if disability:
-            encrypted_disability = aes_encryptor.update(bytes(disability, 'utf-8')) + aes_encryptor.finalize()
+        encrypted_email = aes_encrypt(email)
+        encrypted_display = aes_encrypt(display_name)
+        encrypted_disability = aes_encrypt(disability) if disability else ''
 
         # Hash password
         password_bytes = bytes(password, 'utf-8')
         hashed_password = kdf.derive(password_bytes)
 
         yield self.db.users.insert_one({
-            'email': encrypted_email.hex(),
+            'email': encrypted_email,
             'password_hash': hashed_password.hex(),
-            'displayName': encrypted_display.hex(),
-            'disability': encrypted_disability.hex() if disability else '',
+            'displayName': encrypted_display,
+            'disability': encrypted_disability,
             'password_salt': salt.hex()
         })
 
