@@ -18,8 +18,6 @@ class AESCipher:
         )
         self.key = kdf.derive(AES_KEY)
         self.backend = default_backend()
-        self.padder = padding.PKCS7(128).padder()
-        self.unpadder = padding.PKCS7(128).unpadder()
 
     def create_cipher(self, iv=None):
         if iv is None:
@@ -35,8 +33,9 @@ class AESCipher:
         if isinstance(data, str):
             data = data.encode('utf-8')
         
-        # Pad the data
-        padded_data = self.padder.update(data) + self.padder.finalize()
+        # Create a new padder for each encryption
+        padder = padding.PKCS7(128).padder()
+        padded_data = padder.update(data) + padder.finalize()
         
         # Create cipher and get IV
         cipher, iv = self.create_cipher()
@@ -63,9 +62,12 @@ class AESCipher:
         cipher, _ = self.create_cipher(iv)
         decryptor = cipher.decryptor()
         
+        # Create a new unpadder for each decryption
+        unpadder = padding.PKCS7(128).unpadder()
+        
         # Decrypt and unpad
         decrypted_padded = decryptor.update(ciphertext) + decryptor.finalize()
-        decrypted = self.unpadder.update(decrypted_padded) + self.unpadder.finalize()
+        decrypted = unpadder.update(decrypted_padded) + unpadder.finalize()
         
         return decrypted.decode('utf-8')
 
