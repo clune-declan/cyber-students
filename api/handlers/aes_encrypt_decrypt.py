@@ -1,12 +1,22 @@
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import os
 from ..conf import AES_KEY
 
 class AESCipher:
     def __init__(self):
-        self.key = AES_KEY
+        # Derive a 256-bit key from the configuration key
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,  # 32 bytes = 256 bits
+            salt=b'static_salt_123',  # Using a static salt since we want the same key each time
+            iterations=1,  # Single iteration since we just need key stretching
+            backend=default_backend()
+        )
+        self.key = kdf.derive(AES_KEY)
         self.backend = default_backend()
         self.padder = padding.PKCS7(128).padder()
         self.unpadder = padding.PKCS7(128).unpadder()
