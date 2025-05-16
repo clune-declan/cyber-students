@@ -1,5 +1,6 @@
 from json import dumps, loads
 from tornado.web import RequestHandler
+import traceback
 
 class BaseHandler(RequestHandler):
 
@@ -27,12 +28,18 @@ class BaseHandler(RequestHandler):
         self.set_header('Access-Control-Allow-Headers', '*')
 
     def write_error(self, status_code, **kwargs):
-        if 'message' not in kwargs:
-            if status_code == 405:
-                kwargs['message'] = 'Invalid HTTP method.'
-            else:
-                kwargs['message'] = 'Unknown error.'
-        self.response = kwargs
+        self.response = {
+            'status_code': status_code,
+            'error': {
+                'message': kwargs.get('message', 'Unknown error.'),
+                'type': str(kwargs.get('exc_info', [''])[0].__name__) if kwargs.get('exc_info') else None,
+                'traceback': traceback.format_exception(*kwargs['exc_info']) if kwargs.get('exc_info') else None
+            }
+        }
+        
+        if status_code == 405:
+            self.response['error']['message'] = 'Invalid HTTP method.'
+            
         self.write_json()
 
     def write_json(self):
