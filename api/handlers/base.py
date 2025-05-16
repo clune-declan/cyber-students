@@ -1,6 +1,5 @@
 from json import dumps, loads
 from tornado.web import RequestHandler
-import traceback
 
 class BaseHandler(RequestHandler):
 
@@ -24,22 +23,19 @@ class BaseHandler(RequestHandler):
     def set_default_headers(self):
         self.set_header('Content-Type', 'application/json')
         self.set_header('Access-Control-Allow-Origin', '*')
-        self.set_header('Access-Control-Allow-Methods', '*')
-        self.set_header('Access-Control-Allow-Headers', '*')
+        self.set_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.set_header('Access-Control-Allow-Headers', 'X-Token, Content-Type')
+        # Security headers
+        self.set_header('X-Content-Type-Options', 'nosniff')
+        self.set_header('X-Frame-Options', 'DENY')
 
     def write_error(self, status_code, **kwargs):
-        self.response = {
-            'status_code': status_code,
-            'error': {
-                'message': kwargs.get('message', 'Unknown error.'),
-                'type': str(kwargs.get('exc_info', [''])[0].__name__) if kwargs.get('exc_info') else None,
-                'traceback': traceback.format_exception(*kwargs['exc_info']) if kwargs.get('exc_info') else None
-            }
-        }
-        
-        if status_code == 405:
-            self.response['error']['message'] = 'Invalid HTTP method.'
-            
+        if 'message' not in kwargs:
+            if status_code == 405:
+                kwargs['message'] = 'Invalid HTTP method.'
+            else:
+                kwargs['message'] = 'Unknown error.'
+        self.response = kwargs
         self.write_json()
 
     def write_json(self):

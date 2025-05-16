@@ -17,7 +17,7 @@ class AuthHandler(BaseHandler):
         try:
             token = self.request.headers.get('X-Token')
             if not token:
-                raise Exception()
+              raise Exception()
         except:
             self.current_user = None
             self.send_error(400, message='You must provide a token!')
@@ -27,8 +27,9 @@ class AuthHandler(BaseHandler):
             'token': token
         }, {
             'email': 1,
-            'expiresIn': 1,
-            'personal_data': 1
+            'displayName': 1,
+            'disability': 1,
+            'expiresIn': 1
         })
 
         if user is None:
@@ -42,8 +43,8 @@ class AuthHandler(BaseHandler):
             self.send_error(403, message='Your token has expired!')
             return
 
-       
         self.current_user = {
             'email': user['email'],
-            'personal_data': user.get('personal_data', {})
+            'display_name': user['displayName'],
+            'disability': user.get('disability', '')
         }

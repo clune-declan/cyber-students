@@ -5,80 +5,63 @@ from tornado.gen import coroutine
 
 from .base import BaseHandler
 from .aes_encrypt_decrypt import aes_encrypt
-from .hash_passphrases import kdf, salt, pepper
+from .hash_passphrases import hash_my_password
 
 class RegistrationHandler(BaseHandler):
 
     @coroutine
     def post(self):
         try:
-            # Parse and validate input
             body = json_decode(self.request.body)
             email = body['email'].lower().strip()
-            if not isinstance(email, str):
-                raise ValueError('Email must be a string')
             password = body['password']
-            if not isinstance(password, str):
-                raise ValueError('Password must be a string')
-            display_name = body.get('displayName')
-            if display_name is None:
-                display_name = email
-            if not isinstance(display_name, str):
-                raise ValueError('Display name must be a string')
+            display_name = body.get('displayName', email)
             disability = body.get('disability', '')
-            if disability and not isinstance(disability, str):
-                raise ValueError('Disability must be a string')
 
-            if not email:
-                raise ValueError('The email address is invalid!')
-
-            if not password:
-                raise ValueError('The password is invalid!')
-
-            if not display_name:
-                raise ValueError('The display name is invalid!')
-
-            # Check if user exists
-            user = yield self.db.users.find_one({
-                'email': email
-            }, {})
-
-            if user is not None:
-                raise ValueError('A user with the given email address already exists!')
-
-            try:
-                # Encrypt personal information
-                encrypted_email = aes_encrypt(email)
-                encrypted_display = aes_encrypt(display_name)
-                encrypted_disability = aes_encrypt(disability) if disability else ''
-
-                # Hash password
-                password_bytes = bytes(password, 'utf-8')
-                hashed_password = kdf.derive(password_bytes)
-
-                # Insert into database
-                yield self.db.users.insert_one({
-                    'email': encrypted_email,
-                    'password_hash': hashed_password.hex(),
-                    'displayName': encrypted_display,
-                    'disability': encrypted_disability,
-                    'password_salt': salt.hex()
-                })
-
-                self.set_status(200)
-                self.response['email'] = email
-                self.response['displayName'] = display_name
-                self.write_json()
-
-            except Exception as e:
-                info(f"Error during encryption/database operation: {str(e)}")
-                self.send_error(500, message='Internal server error during user creation')
+            if not email or not isinstance(email, str):
+                self.send_error(400, message='The email address is invalid!')
                 return
 
-        except ValueError as e:
-            self.send_error(400, message=str(e))
-            return
+            if not password or not isinstance(password, str):
+                self.send_error(400, message='The password is invalid!')
+                return
+
+            if not display_name or not isinstance(display_name, str):
+                self.send_error(400, message='The display name is invalid!')
+                return
+
+            if disability and not isinstance(disability, str):
+                self.send_error(400, message='The disability field must be a string!')
+                return
+
+            # Check if user exists using encrypted email
+            user = yield self.db.users.find_one({
+                'email': aes_encrypt(email)
+            })
+
+            if user is not None:
+                self.send_error(400, message='A user with the given email address already exists!')
+                return
+
+            # Hash password and encrypt sensitive data
+            password_data = hash_my_password(password)
+            encrypted_email = aes_encrypt(email)
+            encrypted_display_name = aes_encrypt(display_name)
+            encrypted_disability = aes_encrypt(disability) if disability else ''
+
+            # Store encrypted and hashed data
+            yield self.db.users.insert_one({
+                'email': encrypted_email,
+                'password_hash': password_data['hash'],
+                'password_salt': password_data['salt'],
+                'displayName': encrypted_display_name,
+                'disability': encrypted_disability
+            })
+
+            self.set_status(200)
+            self.response['email'] = email
+            self.response['displayName'] = display_name
+            self.write_json()
+
         except Exception as e:
-            info(f"Unexpected error: {str(e)}")
             self.send_error(500, message='Internal server error')
-            return

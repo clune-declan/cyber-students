@@ -1,30 +1,29 @@
 from tornado.web import authenticated
-from .auth import AuthHandler
+from tornado.gen import coroutine
 
-import json
-from api.handlers.aes_encrypt_decrypt import aes_decrypt
+from .auth import AuthHandler
+from .aes_encrypt_decrypt import aes_decrypt
 
 class UserHandler(AuthHandler):
 
     @authenticated
+    @coroutine
     def get(self):
-        self.set_status(200)
-
-        user = self.current_user
-        encrypted_data = user.get('personal_data', {})
-
-        self.response['email'] = user['email']
-        
-        self.response['displayName'] = aes_decrypt(encrypted_data.get('displayName', ''))
-        
-        self.response['full_name'] = aes_decrypt(encrypted_data.get('full_name', ''))
-        
-        self.response['address'] = aes_decrypt(encrypted_data.get('address', ''))
-        
-        self.response['dob'] = aes_decrypt(encrypted_data.get('dob', ''))
-        
-        self.response['phone_number'] = aes_decrypt(encrypted_data.get('phone_number', ''))
-        
-        self.response['disabilities'] = json.loads(aes_decrypt(encrypted_data.get('disabilities', '[]')))
-
-        self.write_json()
+        try:
+            self.set_status(200)
+            
+            # Get encrypted user data
+            user = self.current_user
+            
+            # Return decrypted basic info
+            self.response['email'] = user['email']
+            self.response['displayName'] = aes_decrypt(user['displayName'])
+            
+            # Add disability info if present
+            if user.get('disability'):
+                self.response['disability'] = aes_decrypt(user['disability'])
+            
+            self.write_json()
+            
+        except Exception:
+            self.send_error(500, message='Internal server error')
