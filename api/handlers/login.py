@@ -1,27 +1,18 @@
-"""Handler for user login endpoint."""
 from datetime import datetime, timedelta
 from time import mktime
 from uuid import uuid4
 from tornado.escape import json_decode
 from tornado.gen import coroutine
+from uuid import uuid4
 
 from .base import BaseHandler
 from .aes_encrypt_decrypt import aes_encrypt
 from .hash_passphrases import check_password
 
 class LoginHandler(BaseHandler):
-    """Handler for user login with token generation."""
 
     @coroutine
     def generate_token(self, email):
-        """Generate a new authentication token for the user.
-        
-        Args:
-            email: User's email address
-            
-        Returns:
-            dict: Token data with token string and expiration time
-        """
         token_uuid = uuid4().hex
         expires_in = datetime.now() + timedelta(hours=2)
         expires_in = mktime(expires_in.utctimetuple())
@@ -41,12 +32,6 @@ class LoginHandler(BaseHandler):
 
     @coroutine
     def post(self):
-        """Handle POST request for user login.
-        
-        Expects JSON body with:
-        - email: string
-        - password: string
-        """
         try:
             body = json_decode(self.request.body)
             email = body['email'].lower().strip()
@@ -89,4 +74,3 @@ class LoginHandler(BaseHandler):
 
         except Exception:
             self.send_error(400, message='You must provide an email address and password!')
-
