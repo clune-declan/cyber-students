@@ -6,86 +6,80 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import os
 from ..conf import AES_KEY
 
-class AESCipher:
-    def __init__(self):
-        # Derive a 256-bit key from the configuration key
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,  # 32 bytes = 256 bits
-            salt=b'static_salt_123',  # Using a static salt since we want the same key each time
-            iterations=1,  # Single iteration since we just need key stretching
-            backend=default_backend()
-        )
-        self.key = kdf.derive(AES_KEY)
-        self.backend = default_backend()
+def get_encryption_key():
+    # Derive a 256-bit key from the configuration key
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,  # 32 bytes = 256 bits
+        salt=b'static_salt_123',  # Using a static salt since we want the same key each time
+        iterations=1,  # Single iteration since we just need key stretching
+        backend=default_backend()
+    )
+    return kdf.derive(AES_KEY)
 
-    def create_cipher(self, iv=None):
-        if iv is None:
-            iv = os.urandom(16)  # Generate a random 16-byte IV
-        cipher = Cipher(
-            algorithms.AES(self.key),
-            modes.CBC(iv),
-            backend=self.backend
-        )
-        return cipher, iv
-
-    def encrypt(self, data):
-        if isinstance(data, str):
-            data = data.encode('utf-8')
-        
-        # Create a new padder for each encryption
-        padder = padding.PKCS7(128).padder()
-        padded_data = padder.update(data) + padder.finalize()
-        
-        # Create cipher and get IV
-        cipher, iv = self.create_cipher()
-        encryptor = cipher.encryptor()
-        
-        # Encrypt the data
-        ciphertext = encryptor.update(padded_data) + encryptor.finalize()
-        
-        # Return IV + ciphertext as hex
-        return (iv + ciphertext).hex()
-
-    def decrypt(self, hex_data):
-        if not hex_data:
-            return ''
-            
-        # Convert from hex to bytes
-        data = bytes.fromhex(hex_data)
-        
-        # Extract IV from the first 16 bytes
-        iv = data[:16]
-        ciphertext = data[16:]
-        
-        # Create cipher with the extracted IV
-        cipher, _ = self.create_cipher(iv)
-        decryptor = cipher.decryptor()
-        
-        # Create a new unpadder for each decryption
-        unpadder = padding.PKCS7(128).unpadder()
-        
-        # Decrypt and unpad
-        decrypted_padded = decryptor.update(ciphertext) + decryptor.finalize()
-        decrypted = unpadder.update(decrypted_padded) + unpadder.finalize()
-        
-        return decrypted.decode('utf-8')
-
-# Create singleton instance
-aes = AESCipher()
-
-# Main interface functions that return hex strings
 def aes_encrypt(plaintext):
     """Encrypt data and return as hex string"""
     if not plaintext:
         return ''
-    return aes.encrypt(plaintext)
+
+    # Convert to bytes if string
+    if isinstance(plaintext, str):
+        plaintext = plaintext.encode('utf-8')
+
+    # Generate IV
+    iv = os.urandom(16)
+
+    # Create cipher
+    cipher = Cipher(
+        algorithms.AES(get_encryption_key()),
+        modes.CBC(iv),
+        backend=default_backend()
+    )
+
+    # Create padder and encryptor
+    padder = padding.PKCS7(128).padder()
+    encryptor = cipher.encryptor()
+
+    # Pad the data
+    padded_data = padder.update(plaintext) + padder.finalize()
+
+    # Encrypt
+    ciphertext = encryptor.update(padded_data) + encryptor.finalize()
+
+    # Combine IV and ciphertext and convert to hex
+    return (iv + ciphertext).hex()
 
 def aes_decrypt(hex_data):
     """Decrypt data from hex string"""
     if not hex_data:
         return ''
-    return aes.decrypt(hex_data)
+
+    # Convert from hex to bytes
+    data = bytes.fromhex(hex_data)
+
+    # Extract IV (first 16 bytes)
+    iv = data[:16]
+    ciphertext = data[16:]
+
+    # Create cipher
+    cipher = Cipher(
+        algorithms.AES(get_encryption_key()),
+        modes.CBC(iv),
+        backend=default_backend()
+    )
+
+    # Create unpadder and decryptor
+    unpadder = padding.PKCS7(128).unpadder()
+    decryptor = cipher.decryptor()
+
+    # Decrypt
+    decrypted_padded = decryptor.update(ciphertext) + decryptor.finalize()
+
+    # Unpad
+    decrypted = unpadder.update(decrypted_padded) + unpadder.finalize()
+
+    # Convert back to string
+    return decrypted.decode('utf-8')
 
 # Test the encryption
 if __name__ == "__main__":
@@ -103,3 +97,14 @@ if __name__ == "__main__":
     # Test empty string
     print(f"Empty string test - Encrypted: {aes_encrypt('')}")
     print(f"Empty string test - Decrypted: {aes_decrypt('')}")
+    
+    # Test multiple encryptions
+    print("\nTesting multiple encryptions:")
+    for i in range(3):
+        text = f"Test {i}"
+        enc = aes_encrypt(text)
+        dec = aes_decrypt(enc)
+        print(f"Original: {text}")
+        print(f"Encrypted: {enc}")
+        print(f"Decrypted: {dec}")
+        print()
