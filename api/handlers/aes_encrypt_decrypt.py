@@ -1,6 +1,5 @@
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import os
@@ -16,6 +15,18 @@ def get_encryption_key():
         backend=default_backend()
     )
     return kdf.derive(AES_KEY)
+
+def pad(data):
+    """PKCS7 padding implementation"""
+    block_size = 16
+    padding_length = block_size - (len(data) % block_size)
+    padding = bytes([padding_length] * padding_length)
+    return data + padding
+
+def unpad(data):
+    """PKCS7 unpadding implementation"""
+    padding_length = data[-1]
+    return data[:-padding_length]
 
 def aes_encrypt(plaintext):
     """Encrypt data and return as hex string"""
@@ -35,15 +46,10 @@ def aes_encrypt(plaintext):
         modes.CBC(iv),
         backend=default_backend()
     )
-
-    # Create padder and encryptor
-    padder = padding.PKCS7(128).padder()
     encryptor = cipher.encryptor()
 
-    # Pad the data
-    padded_data = padder.update(plaintext) + padder.finalize()
-
-    # Encrypt
+    # Pad and encrypt
+    padded_data = pad(plaintext)
     ciphertext = encryptor.update(padded_data) + encryptor.finalize()
 
     # Combine IV and ciphertext and convert to hex
@@ -67,16 +73,11 @@ def aes_decrypt(hex_data):
         modes.CBC(iv),
         backend=default_backend()
     )
-
-    # Create unpadder and decryptor
-    unpadder = padding.PKCS7(128).unpadder()
     decryptor = cipher.decryptor()
 
-    # Decrypt
+    # Decrypt and unpad
     decrypted_padded = decryptor.update(ciphertext) + decryptor.finalize()
-
-    # Unpad
-    decrypted = unpadder.update(decrypted_padded) + unpadder.finalize()
+    decrypted = unpad(decrypted_padded)
 
     # Convert back to string
     return decrypted.decode('utf-8')
